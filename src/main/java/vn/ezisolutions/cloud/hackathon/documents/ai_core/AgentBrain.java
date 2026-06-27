@@ -9,7 +9,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
@@ -49,7 +48,6 @@ public class AgentBrain {
     private UUID envId;
 
     @Column(name = "system_instruction", columnDefinition = "TEXT")
-    @Lob
     private String systemInstruction;
 
     private Double temperature;
@@ -67,7 +65,6 @@ public class AgentBrain {
     private String mcpServerIds;
 
     @Column(name = "prompt_template", columnDefinition = "TEXT")
-    @Lob
     private String promptTemplate;
 
     @CreatedDate

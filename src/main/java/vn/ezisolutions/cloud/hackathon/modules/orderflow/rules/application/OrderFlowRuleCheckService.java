@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -160,6 +161,13 @@ public class OrderFlowRuleCheckService {
 
     public void createHold(DraftOrderEntity order, DraftOrderLineEntity line, HoldType type,
                            String ruleCode, String reason, Map<String, Object> payload) {
+        boolean duplicateOpenHold = orderHoldRepository.findByDraftOrderIdAndStatus(order.getId(), HoldStatus.OPEN).stream()
+                .anyMatch(existing -> existing.getHoldType() == type
+                        && Objects.equals(existing.getDraftOrderLineId(), line == null ? null : line.getId())
+                        && Objects.equals(existing.getRuleCode(), ruleCode));
+        if (duplicateOpenHold) {
+            return;
+        }
         OrderHoldEntity hold = new OrderHoldEntity();
         hold.setOrganizationId(order.getOrganizationId());
         hold.setDraftOrderId(order.getId());

@@ -159,6 +159,9 @@ public class DraftOrderWorkflowService {
     @Transactional
     public OrderHoldEntity releaseHold(OrderFlowPrincipal user, UUID holdId, String note) {
         OrderHoldEntity hold = orderHoldRepository.findById(holdId).orElseThrow();
+        if (hold.getStatus() == HoldStatus.RELEASED) {
+            return hold;
+        }
         hold.setStatus(HoldStatus.RELEASED);
         hold.setReleasedByUserId(user.userId());
         hold.setReleasedAt(OffsetDateTime.now());
@@ -172,6 +175,12 @@ public class DraftOrderWorkflowService {
     @Transactional
     public DraftOrderEntity approve(OrderFlowPrincipal user, UUID orderId) {
         DraftOrderEntity order = draftOrderRepository.findById(orderId).orElseThrow();
+        if (order.getStatus() == DraftOrderStatus.APPROVED || order.getStatus() == DraftOrderStatus.EXPORTED) {
+            return order;
+        }
+        if (order.getStatus() == DraftOrderStatus.REJECTED) {
+            throw new CustomValidationException("Cannot approve a rejected order", null);
+        }
         if (!orderHoldRepository.findByDraftOrderIdAndStatus(orderId, HoldStatus.OPEN).isEmpty()) {
             throw new CustomValidationException("Không thể duyệt đơn khi còn hold mở", null);
         }
@@ -211,6 +220,22 @@ public class DraftOrderWorkflowService {
         logService.review(order.getOrganizationId(), order.getId(), null, "APPROVE_ORDER", "Order approved", user.userId(), Map.of("orderId", orderId));
         logService.audit(order.getOrganizationId(), order.getId(), "DraftOrder", order.getId(), ActorType.USER, user.userId(), "ORDER_APPROVED", Map.of("orderId", orderId));
         return order;
+    }
+
+    @Transactional
+    public OrderHoldEntity rejectHold(OrderFlowPrincipal user, UUID holdId, String note) {
+        OrderHoldEntity hold = orderHoldRepository.findById(holdId).orElseThrow();
+        if (hold.getStatus() == HoldStatus.REJECTED) {
+            return hold;
+        }
+        hold.setStatus(HoldStatus.REJECTED);
+        hold.setReleasedByUserId(user.userId());
+        hold.setReleasedAt(OffsetDateTime.now());
+        hold.setReleaseNote(note);
+        orderHoldRepository.save(hold);
+        logService.review(hold.getOrganizationId(), hold.getDraftOrderId(), hold.getDraftOrderLineId(), "REJECT_HOLD", note, user.userId(), Map.of("holdId", holdId));
+        recomputeStatus(hold.getDraftOrderId());
+        return hold;
     }
 
     @Transactional
@@ -255,6 +280,12 @@ public class DraftOrderWorkflowService {
     @Transactional
     public DraftOrderDocumentEntity generateDocument(OrderFlowPrincipal user, UUID orderId, DocumentType type) {
         DraftOrderEntity order = draftOrderRepository.findById(orderId).orElseThrow();
+        if (!orderHoldRepository.findByDraftOrderIdAndStatus(orderId, HoldStatus.OPEN).isEmpty()) {
+            throw new CustomValidationException("Cannot generate documents while open holds remain", null);
+        }
+        if (order.getStatus() != DraftOrderStatus.APPROVED && order.getStatus() != DraftOrderStatus.EXPORTED) {
+            throw new CustomValidationException("Documents can only be generated after approval", null);
+        }
         List<DraftOrderLineEntity> lines = draftOrderLineRepository.findByDraftOrderIdOrderByLineNo(orderId);
         Map<UUID, ProductSkuEntity> skus = productSkuRepository.findAllById(lines.stream()
                         .map(DraftOrderLineEntity::getSelectedSkuId)

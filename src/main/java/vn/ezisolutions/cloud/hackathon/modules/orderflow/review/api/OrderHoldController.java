@@ -33,7 +33,7 @@ public class OrderHoldController {
 
     @PostMapping("/order-holds/{holdId}/reject")
     public BaseResponse reject(@PathVariable UUID holdId, @RequestBody(required = false) HoldActionRequest request) {
-        return release(holdId, request);
+        return BaseResponse.success(workflowService.rejectHold(OrderFlowSecurity.currentUser(), holdId, request == null ? null : request.note()));
     }
 
     public record HoldActionRequest(String note) {
