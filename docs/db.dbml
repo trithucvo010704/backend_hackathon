@@ -1,0 +1,583 @@
+Project orderflow_ai {
+  database_type: "PostgreSQL"
+  Note: '''
+  OrderFlow AI MVP.
+  organizations = công ty/cửa hàng/nhà phân phối đang dùng app.
+  app_users = nhân viên nội bộ của công ty đó.
+  customers = khách mua hàng từ công ty đó.
+  '''
+}
+
+Enum user_role {
+  SALES
+  SALE_ADMIN
+  MANAGER
+  ACCOUNTANT
+  WAREHOUSE
+  SYSTEM
+}
+
+Enum customer_type {
+  RETAIL_CUSTOMER
+  CONTRACTOR
+  DEALER
+  STORE
+  DISTRIBUTOR
+  OTHER
+}
+
+Enum draft_order_status {
+  NEW
+  EXTRACTING
+  READY_FOR_REVIEW
+  NEEDS_CLARIFICATION
+  ON_HOLD
+  APPROVED
+  REJECTED
+  EXPORTED
+}
+
+Enum draft_order_line_status {
+  EXTRACTED
+  PENDING_MATCH
+  NEEDS_CLARIFICATION
+  MATCHED
+  ON_HOLD
+  APPROVED
+  REJECTED
+}
+
+Enum hold_type {
+  CLARIFICATION_HOLD
+  STOCK_HOLD
+  PRICE_HOLD
+  CREDIT_HOLD
+}
+
+Enum hold_status {
+  OPEN
+  RELEASED
+  REJECTED
+}
+
+Enum rule_check_status {
+  PASS
+  WARN
+  FAIL
+}
+
+Enum actor_type {
+  AI
+  USER
+  SYSTEM
+  RULE_ENGINE
+}
+
+Enum document_type {
+  QUOTE
+  PICK_LIST
+}
+
+Enum document_status {
+  DRAFT
+  GENERATED
+  VOIDED
+}
+
+Enum reservation_status {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+Table organizations {
+  id uuid [pk, note: 'Khóa chính của công ty dùng app']
+  organization_code varchar(50) [not null, unique, note: 'Mã công ty/cửa hàng/nhà phân phối']
+  name varchar(255) [not null, note: 'Tên công ty dùng OrderFlow AI']
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Bên bán hàng đang sử dụng hệ thống. MVP chỉ cần 1 organization.'
+}
+
+Table app_users {
+  id uuid [pk, note: 'Khóa chính nhân viên']
+  organization_id uuid [not null, note: 'Nhân viên thuộc công ty nào']
+  email varchar(255) [note: 'Email đăng nhập hoặc định danh']
+  display_name varchar(255) [not null, note: 'Tên hiển thị của nhân viên']
+  role user_role [not null, note: 'Vai trò: sales, sale admin, kế toán, kho, quản lý']
+  active boolean [not null, note: 'Nhân viên còn hoạt động hay không']
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Nhân viên nội bộ của organization.'
+}
+
+Table customers {
+  id uuid [pk, note: 'Khóa chính khách mua hàng']
+  organization_id uuid [not null, note: 'Khách thuộc công ty bán hàng nào']
+  sales_owner_user_id uuid [note: 'Nhân viên kinh doanh phụ trách khách này']
+  customer_code varchar(50) [not null, note: 'Mã khách hàng']
+  name varchar(255) [not null, note: 'Tên khách hàng']
+  customer_type customer_type [not null, note: 'Loại khách: thợ, nhà thầu, đại lý, cửa hàng, nhà phân phối']
+  phone varchar(50) [note: 'Số điện thoại khách']
+  address text [note: 'Địa chỉ mặc định']
+  default_price_tier varchar(50) [not null, note: 'Nhóm giá mặc định']
+  status varchar(30) [not null, note: 'Trạng thái khách hàng']
+  note text [note: 'Ghi chú nội bộ']
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Bên mua hàng từ organization.'
+}
+
+Table customer_projects {
+  id uuid [pk, note: 'Khóa chính công trình']
+  organization_id uuid [not null, note: 'Công trình thuộc organization nào']
+  customer_id uuid [not null, note: 'Công trình của khách nào']
+  project_code varchar(50) [note: 'Mã công trình']
+  name varchar(255) [not null, note: 'Tên công trình']
+  delivery_address text [note: 'Địa chỉ giao hàng']
+  default_delivery_note text [note: 'Ghi chú giao hàng mặc định']
+  active boolean [not null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Địa điểm/công trình giao hàng của khách.'
+}
+
+Table customer_credit_profiles {
+  customer_id uuid [pk, note: 'Khách hàng được theo dõi công nợ']
+  credit_limit decimal(18,2) [not null, note: 'Hạn mức công nợ']
+  current_debt decimal(18,2) [not null, note: 'Dư nợ hiện tại']
+  overdue_debt decimal(18,2) [not null, note: 'Nợ quá hạn']
+  pending_approved_order_amount decimal(18,2) [not null, note: 'Giá trị đơn đã duyệt nhưng chưa thu']
+  payment_term_days int [not null, note: 'Số ngày công nợ cho phép']
+  updated_at timestamptz
+
+  Note: 'Dữ liệu để rule engine kiểm CREDIT_HOLD.'
+}
+
+Table warehouses {
+  id uuid [pk, note: 'Khóa chính kho']
+  organization_id uuid [not null, note: 'Kho thuộc công ty nào']
+  warehouse_code varchar(50) [not null, note: 'Mã kho']
+  name varchar(255) [not null, note: 'Tên kho']
+  address text [note: 'Địa chỉ kho']
+  active boolean [not null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Kho hàng. MVP thường chỉ có 1 kho chính.'
+}
+
+Table product_skus {
+  id uuid [pk, note: 'Khóa chính SKU']
+  organization_id uuid [not null, note: 'SKU thuộc catalogue của organization nào']
+  sku_code varchar(80) [not null, note: 'Mã SKU kỹ thuật']
+  product_name varchar(255) [not null, note: 'Tên sản phẩm']
+  product_family varchar(50) [not null, note: 'Nhóm hàng: PIPE, FITTING...']
+  material varchar(50) [note: 'Vật liệu: PVC, PPR, HDPE']
+  brand varchar(100) [note: 'Thương hiệu']
+  diameter_mm decimal(10,2) [note: 'Đường kính mm']
+  nominal_size varchar(50) [note: 'Kích thước danh nghĩa']
+  size_system varchar(30) [note: 'Hệ kích thước: mét/inch']
+  pressure_class varchar(50) [note: 'PN/áp lực']
+  thickness_mm decimal(10,2) [note: 'Độ dày']
+  fitting_type varchar(80) [note: 'Loại phụ kiện: co, tê, nối...']
+  angle_degree int [note: 'Góc co: 45/90']
+  thread_type varchar(50) [note: 'Ren trong/ren ngoài']
+  reducer_from_mm decimal(10,2) [note: 'Đầu lớn của tê/co giảm']
+  reducer_to_mm decimal(10,2) [note: 'Đầu nhỏ của tê/co giảm']
+  length_m decimal(10,2) [note: 'Chiều dài cây/cuộn']
+  sell_unit varchar(30) [not null, note: 'Đơn vị bán: cây, mét, cuộn, cái']
+  base_unit varchar(30) [not null, note: 'Đơn vị gốc để quy đổi']
+  units_per_sell_unit decimal(18,4) [not null, note: 'Hệ số quy đổi']
+  active boolean [not null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Danh mục SKU kỹ thuật để AI/rule engine match hàng.'
+}
+
+Table product_aliases {
+  id uuid [pk]
+  organization_id uuid [not null]
+  alias_text varchar(255) [not null, note: 'Tên gọi tự nhiên: ống nóng, co 25, tê giảm']
+  normalized_alias varchar(255) [not null, note: 'Alias đã chuẩn hóa để tìm kiếm']
+  sku_id uuid [note: 'Nếu alias trỏ thẳng tới một SKU']
+  product_family varchar(50)
+  material varchar(50)
+  brand varchar(100)
+  diameter_mm decimal(10,2)
+  pressure_class varchar(50)
+  fitting_type varchar(80)
+  thread_type varchar(50)
+  confidence_weight decimal(5,4) [not null, note: 'Trọng số hỗ trợ matching']
+  note text
+  active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Từ điển tên gọi lóng giúp AI match SKU.'
+}
+
+Table price_lists {
+  id uuid [pk]
+  organization_id uuid [not null]
+  price_list_code varchar(50) [not null, note: 'Mã bảng giá']
+  name varchar(255) [not null, note: 'Tên bảng giá']
+  customer_id uuid [note: 'Nếu là bảng giá riêng cho một khách']
+  price_tier varchar(50) [note: 'Nhóm giá: STANDARD, DEALER...']
+  valid_from date [not null]
+  valid_to date
+  priority int [not null, note: 'Ưu tiên khi nhiều bảng giá cùng khớp']
+  active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Bảng giá chuẩn/theo nhóm/theo khách.'
+}
+
+Table sku_prices {
+  id uuid [pk]
+  organization_id uuid [not null]
+  price_list_id uuid [not null]
+  sku_id uuid [not null]
+  min_quantity decimal(18,4) [not null, note: 'Số lượng tối thiểu để áp dụng giá']
+  unit_price decimal(18,2) [not null, note: 'Đơn giá']
+  approval_floor_price decimal(18,2) [note: 'Giá sàn, thấp hơn thì cần duyệt']
+  active boolean
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Giá từng SKU trong từng bảng giá.'
+}
+
+Table inventory_balances {
+  id uuid [pk]
+  organization_id uuid [not null]
+  warehouse_id uuid [not null]
+  sku_id uuid [not null]
+  on_hand_quantity decimal(18,4) [not null, note: 'Tồn thực tế']
+  reserved_quantity decimal(18,4) [not null, note: 'Tồn đã giữ cho đơn khác']
+  available_quantity decimal(18,4) [note: 'Tồn khả dụng = on_hand - reserved']
+  updated_at timestamptz
+
+  Note: 'Tồn kho theo SKU và kho.'
+}
+
+Table raw_order_texts {
+  id uuid [pk]
+  organization_id uuid [not null]
+  source_channel varchar(50) [not null, note: 'MANUAL_TEXT trong MVP']
+  raw_text text [not null, note: 'Nội dung đơn hàng gốc']
+  normalized_text text [note: 'Text đã chuẩn hóa nếu có']
+  extraction_result jsonb [note: 'Kết quả AI extraction dạng JSON']
+  pasted_by_user_id uuid [note: 'Ai paste/gõ đơn']
+  received_at timestamptz
+  created_at timestamptz
+
+  Note: 'Lưu đơn thô gốc để audit và debug AI.'
+}
+
+Table draft_orders {
+  id uuid [pk]
+  organization_id uuid [not null]
+  order_no varchar(50) [not null, note: 'Mã đơn nháp']
+  raw_order_text_id uuid [note: 'Nguồn text gốc']
+  customer_id uuid [note: 'Khách mua hàng']
+  project_id uuid [note: 'Công trình giao hàng']
+  warehouse_id uuid [not null, note: 'Kho xử lý đơn']
+  status draft_order_status [not null, note: 'Trạng thái đơn nháp']
+  requested_delivery_date date [note: 'Ngày giao khách yêu cầu']
+  delivery_note text [note: 'Ghi chú giao hàng']
+  total_amount decimal(18,2) [not null, note: 'Tổng tiền đơn nháp']
+  clarification_question text [note: 'Câu hỏi cần hỏi lại khách']
+  created_by_user_id uuid [note: 'Người tạo đơn']
+  ready_for_review_at timestamptz
+  approved_by_user_id uuid
+  approved_at timestamptz
+  rejected_by_user_id uuid
+  rejected_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Header đơn nháp an toàn.'
+}
+
+Table draft_order_lines {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  line_no int [not null, note: 'Số thứ tự dòng']
+  raw_line_text text [not null, note: 'Dòng hàng gốc AI tách ra']
+  item_description text [note: 'Mô tả dòng hàng']
+  quantity decimal(18,4) [not null, note: 'Số lượng']
+  requested_unit varchar(30) [note: 'Đơn vị khách nói']
+  extracted_attributes jsonb [not null, note: 'Thuộc tính AI trích xuất']
+  selected_sku_id uuid [note: 'SKU cuối cùng được chọn']
+  selected_by_user_id uuid [note: 'Ai chọn/xác nhận SKU']
+  selected_at timestamptz
+  unit_price decimal(18,2) [note: 'Đơn giá áp dụng']
+  price_source varchar(100) [note: 'Nguồn giá']
+  line_amount decimal(18,2) [note: 'Thành tiền dòng']
+  confidence_score decimal(5,4) [note: 'Độ tin cậy AI']
+  clarification_question text [note: 'Câu hỏi làm rõ cho dòng này']
+  status draft_order_line_status [not null]
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Dòng hàng trong đơn nháp.'
+}
+
+Table sku_candidates {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_line_id uuid [not null]
+  sku_id uuid [not null]
+  rank_no int [not null, note: 'Thứ hạng gợi ý']
+  confidence_score decimal(5,4) [not null, note: 'Độ tin cậy match']
+  match_reason text [note: 'Vì sao gợi ý SKU này']
+  matched_attributes jsonb [not null, note: 'Thuộc tính đã khớp']
+  missing_attributes jsonb [not null, note: 'Thuộc tính còn thiếu']
+  source varchar(50) [not null, note: 'AI_MATCHER hoặc rule matcher']
+  created_at timestamptz
+
+  Note: 'Danh sách SKU ứng viên cho từng dòng.'
+}
+
+Table price_checks {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_line_id uuid [not null]
+  sku_id uuid [not null]
+  price_list_id uuid
+  quantity decimal(18,4)
+  proposed_unit_price decimal(18,2) [note: 'Giá đang áp dụng']
+  reference_unit_price decimal(18,2) [note: 'Giá tham chiếu']
+  approval_floor_price decimal(18,2) [note: 'Giá sàn cần duyệt']
+  status rule_check_status [not null]
+  reason text
+  checked_at timestamptz
+
+  Note: 'Snapshot kiểm giá.'
+}
+
+Table inventory_checks {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_line_id uuid [not null]
+  warehouse_id uuid [not null]
+  sku_id uuid [not null]
+  requested_quantity decimal(18,4)
+  on_hand_quantity decimal(18,4)
+  reserved_quantity decimal(18,4)
+  available_quantity decimal(18,4)
+  status rule_check_status [not null]
+  reason text
+  checked_at timestamptz
+
+  Note: 'Snapshot kiểm tồn kho.'
+}
+
+Table credit_checks {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  customer_id uuid [not null]
+  order_amount decimal(18,2)
+  credit_limit decimal(18,2)
+  current_debt decimal(18,2)
+  overdue_debt decimal(18,2)
+  pending_approved_order_amount decimal(18,2)
+  projected_debt decimal(18,2) [note: 'Công nợ dự kiến sau đơn']
+  status rule_check_status [not null]
+  reason text
+  checked_at timestamptz
+
+  Note: 'Snapshot kiểm công nợ.'
+}
+
+Table order_holds {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  draft_order_line_id uuid [note: 'Null nếu hold cấp toàn đơn']
+  hold_type hold_type [not null]
+  status hold_status [not null]
+  severity varchar(30) [not null, note: 'BLOCKING hoặc WARNING']
+  rule_code varchar(100)
+  reason text [not null, note: 'Lý do bị hold']
+  payload jsonb [note: 'Dữ liệu chi tiết của hold']
+  created_by_actor_type actor_type [not null]
+  released_by_user_id uuid
+  released_at timestamptz
+  release_note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  Note: 'Các vấn đề đang chặn đơn.'
+}
+
+Table review_actions {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  draft_order_line_id uuid
+  action_type varchar(80) [not null, note: 'SELECT_SKU, EDIT_QTY, APPROVE, REJECT...']
+  comment text
+  before_data jsonb
+  after_data jsonb
+  actor_user_id uuid [not null]
+  created_at timestamptz
+
+  Note: 'Lưu thao tác review của người dùng.'
+}
+
+Table inventory_reservations {
+  id uuid [pk]
+  organization_id uuid [not null]
+  warehouse_id uuid [not null]
+  sku_id uuid [not null]
+  draft_order_line_id uuid [not null]
+  quantity decimal(18,4)
+  status reservation_status
+  reserved_at timestamptz
+  released_at timestamptz
+  consumed_at timestamptz
+
+  Note: 'Giữ hàng cho đơn đã duyệt.'
+}
+
+Table processing_events {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  stage varchar(100) [not null, note: 'RAW_TEXT_RECEIVED, AI_EXTRACTION, SKU_MATCHING...']
+  status varchar(50) [not null]
+  started_at timestamptz
+  finished_at timestamptz
+  duration_ms int [note: 'Thời gian xử lý stage']
+  metadata jsonb
+
+  Note: 'Log đo Time to Safe Draft.'
+}
+
+Table audit_events {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid
+  aggregate_type varchar(80) [not null, note: 'Loại entity bị tác động']
+  aggregate_id uuid [not null, note: 'ID entity bị tác động']
+  actor_type actor_type [not null]
+  actor_user_id uuid
+  event_type varchar(100) [not null]
+  before_data jsonb
+  after_data jsonb
+  metadata jsonb
+  created_at timestamptz
+
+  Note: 'Audit trail tổng quát.'
+}
+
+Table draft_order_documents {
+  id uuid [pk]
+  organization_id uuid [not null]
+  draft_order_id uuid [not null]
+  document_type document_type [not null]
+  status document_status [not null]
+  html_snapshot text [note: 'HTML báo giá/phiếu lấy hàng']
+  pdf_path text [note: 'Đường dẫn PDF nếu có']
+  generated_by_user_id uuid
+  generated_at timestamptz
+  created_at timestamptz
+
+  Note: 'Output demo: báo giá hoặc phiếu lấy hàng.'
+}
+
+Ref: app_users.organization_id > organizations.id
+
+Ref: customers.organization_id > organizations.id
+Ref: customers.sales_owner_user_id > app_users.id
+
+Ref: customer_projects.organization_id > organizations.id
+Ref: customer_projects.customer_id > customers.id
+Ref: customer_credit_profiles.customer_id - customers.id
+
+Ref: warehouses.organization_id > organizations.id
+
+Ref: product_skus.organization_id > organizations.id
+Ref: product_aliases.organization_id > organizations.id
+Ref: product_aliases.sku_id > product_skus.id
+
+Ref: price_lists.organization_id > organizations.id
+Ref: price_lists.customer_id > customers.id
+Ref: sku_prices.organization_id > organizations.id
+Ref: sku_prices.price_list_id > price_lists.id
+Ref: sku_prices.sku_id > product_skus.id
+
+Ref: inventory_balances.organization_id > organizations.id
+Ref: inventory_balances.warehouse_id > warehouses.id
+Ref: inventory_balances.sku_id > product_skus.id
+
+Ref: raw_order_texts.organization_id > organizations.id
+Ref: raw_order_texts.pasted_by_user_id > app_users.id
+
+Ref: draft_orders.organization_id > organizations.id
+Ref: draft_orders.raw_order_text_id > raw_order_texts.id
+Ref: draft_orders.customer_id > customers.id
+Ref: draft_orders.project_id > customer_projects.id
+Ref: draft_orders.warehouse_id > warehouses.id
+Ref: draft_orders.created_by_user_id > app_users.id
+Ref: draft_orders.approved_by_user_id > app_users.id
+Ref: draft_orders.rejected_by_user_id > app_users.id
+
+Ref: draft_order_lines.organization_id > organizations.id
+Ref: draft_order_lines.draft_order_id > draft_orders.id
+Ref: draft_order_lines.selected_sku_id > product_skus.id
+Ref: draft_order_lines.selected_by_user_id > app_users.id
+
+Ref: sku_candidates.organization_id > organizations.id
+Ref: sku_candidates.draft_order_line_id > draft_order_lines.id
+Ref: sku_candidates.sku_id > product_skus.id
+
+Ref: price_checks.organization_id > organizations.id
+Ref: price_checks.draft_order_line_id > draft_order_lines.id
+Ref: price_checks.sku_id > product_skus.id
+Ref: price_checks.price_list_id > price_lists.id
+
+Ref: inventory_checks.organization_id > organizations.id
+Ref: inventory_checks.draft_order_line_id > draft_order_lines.id
+Ref: inventory_checks.warehouse_id > warehouses.id
+Ref: inventory_checks.sku_id > product_skus.id
+
+Ref: credit_checks.organization_id > organizations.id
+Ref: credit_checks.draft_order_id > draft_orders.id
+Ref: credit_checks.customer_id > customers.id
+
+Ref: order_holds.organization_id > organizations.id
+Ref: order_holds.draft_order_id > draft_orders.id
+Ref: order_holds.draft_order_line_id > draft_order_lines.id
+Ref: order_holds.released_by_user_id > app_users.id
+
+Ref: review_actions.organization_id > organizations.id
+Ref: review_actions.draft_order_id > draft_orders.id
+Ref: review_actions.draft_order_line_id > draft_order_lines.id
+Ref: review_actions.actor_user_id > app_users.id
+
+Ref: inventory_reservations.organization_id > organizations.id
+Ref: inventory_reservations.warehouse_id > warehouses.id
+Ref: inventory_reservations.sku_id > product_skus.id
+Ref: inventory_reservations.draft_order_line_id > draft_order_lines.id
+
+Ref: processing_events.organization_id > organizations.id
+Ref: processing_events.draft_order_id > draft_orders.id
+
+Ref: audit_events.organization_id > organizations.id
+Ref: audit_events.draft_order_id > draft_orders.id
+Ref: audit_events.actor_user_id > app_users.id
+
+Ref: draft_order_documents.organization_id > organizations.id
+Ref: draft_order_documents.draft_order_id > draft_orders.id
+Ref: draft_order_documents.generated_by_user_id > app_users.id

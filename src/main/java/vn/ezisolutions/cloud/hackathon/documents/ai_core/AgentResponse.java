@@ -41,7 +41,25 @@ public class AgentResponse {
     @JsonSerialize(using = ToStringSerializer.class)
     private UUID id;
 
+    @Column(name = "agent_name")
+    private String agentName;
+
     private String skill;
+
+    @Column(name = "correlation_type")
+    private String correlationType;
+
+    @Column(name = "correlation_id")
+    private UUID correlationId;
+
+    @Column(name = "provider", length = 64)
+    private String provider;
+
+    @Column(name = "model_name")
+    private String modelName;
+
+    @Column(name = "duration_ms")
+    private Integer durationMs;
 
     @Column(name = "finish_reason")
     private String finishReason;

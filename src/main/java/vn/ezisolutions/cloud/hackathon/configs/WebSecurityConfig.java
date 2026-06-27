@@ -7,6 +7,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -23,7 +25,6 @@ public class WebSecurityConfig {
     @Value("${app.allow.origins}")
     private String allowOrigins;
 
-
     @Bean
     public SecurityFilterChain appFilterChain(HttpSecurity http, AppTokenFilter filter) {
         http
@@ -39,6 +40,11 @@ public class WebSecurityConfig {
                 .addFilterBefore(filter, AnonymousAuthenticationFilter.class)
                 .cors(Customizer.withDefaults());
         return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     @Bean

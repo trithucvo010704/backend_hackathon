@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
 @EnableJpaAuditing
-@EnableJpaRepositories(basePackages = "vn.ezisolutions.cloud.hackathon.repositories")
+@EnableJpaRepositories(basePackages = "vn.ezisolutions.cloud.hackathon")
 public class JpaConfig {
 }
