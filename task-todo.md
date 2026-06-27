@@ -1,5 +1,25 @@
 # Task Todo: OrderFlow AI Backend Full MVP
 
+## Active Task: Docker PostgreSQL + Real OpenAI E2E Hardening
+
+- [x] Run the existing Maven test suite and record the real test count.
+- [x] Start a clean PostgreSQL 16 Docker database on a non-conflicting local port.
+- [x] Verify Flyway V1-V3 can migrate an empty database.
+- [x] Verify Hibernate schema validation and backend startup against PostgreSQL 16.
+- [x] Run login and master-data smoke APIs.
+- [x] Reproduce the demo login seed hash mismatch.
+- [x] Reproduce the AI core PostgreSQL `TEXT`/`@Lob` runtime mapping failure.
+- [ ] Fix the demo password hash so documented local credentials work on a fresh database.
+- [ ] Fix AI core text mappings without changing the database schema.
+- [ ] Add regression tests for seeded login and MAS registry runtime loading.
+- [ ] Rebuild and rerun all automated tests.
+- [ ] Recreate the database from zero and rerun Flyway/JPA startup.
+- [ ] Call OpenAI Responses API through `/api/ai/extract-order` with the supplied key.
+- [ ] Run draft-order intake, matching, rules, holds/review, approval, document, audit, and event APIs.
+- [ ] Query PostgreSQL directly to verify persisted row counts and cross-table correlations.
+- [ ] Remove obsolete/noisy local configuration that is proven unnecessary for OrderFlow runtime.
+- [ ] Update this checklist with exact pass/fail evidence and remaining backend recommendations.
+
 ## Current Implementation Snapshot
 
 - DONE: DBML-backed Flyway migrations are added under `src/main/resources/db/migration`.
@@ -8,8 +28,8 @@
 - DONE: OrderFlow MVP APIs are scaffolded for auth, master data, AI extraction, draft orders, line review, holds, documents, processing events, audit events, and review actions.
 - DONE: OpenAI extraction gateway is wired through `OPENAI_API_KEY`, `ORDERFLOW_OPENAI_MODEL`, and `OPENAI_BASE_URL`.
 - DONE: MAS seed records are represented in existing AI core tables for orchestrator, extraction, matching, rule check, review workbench, and document agents.
-- DONE: Automated tests pass with `.\mvnw.cmd test`, including a DBML entity/repository coverage test.
-- BLOCKED FOR REAL HTTP SMOKE: local Postgres is reachable on `localhost:5432`, but the default `postgres/postgres` credential is rejected on this machine.
+- PARTIAL: Automated tests pass with `.\mvnw.cmd test`, but the suite currently contains only 5 tests and does not yet cover controller/integration/E2E behavior.
+- DONE: A clean PostgreSQL 16 Docker instance is available on `localhost:55432` for isolated E2E testing.
 - READY WITH SECRET HANDLING: the OpenAI key was provided in chat, but it must be injected through the process environment or updated into local `ai_envs.api_key`; it is not committed to repo files or printed in logs.
 - READY: `scripts/orderflow-smoke.ps1` can run login/master-data smoke and optional OpenAI/full draft-order smoke once backend is running with valid DB credentials and OpenAI key.
 

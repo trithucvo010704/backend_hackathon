@@ -1,5 +1,18 @@
 # Acceptance Criteria: OrderFlow AI Backend Full MVP
 
+## Active E2E Hardening Acceptance
+
+- A fresh PostgreSQL 16 container can apply every Flyway migration with no failed migration.
+- The documented demo login `sale.admin@orderflow.local` / `password` succeeds without manually updating the database.
+- MAS registry entities load PostgreSQL `TEXT` values without OID/`long` conversion errors.
+- The real OpenAI call returns schema-valid structured extraction through the backend endpoint.
+- A draft order created from Vietnamese text persists raw text, extraction, lines, candidates, checks, holds, agent response, processing events, and audit events.
+- Approval remains blocked while unresolved lines or blocking holds exist.
+- A resolvable happy path can be reviewed, approved, reserved, and rendered as quote/pick-list HTML.
+- Direct SQL verification confirms foreign-key correlations and expected state transitions.
+- API keys, bearer tokens, passwords, and raw secrets are not committed or printed in the final report.
+- Automated regression tests cover every defect fixed during this E2E pass.
+
 ## 1. Planning And Scope
 
 - `task-todo.md` describes the full backend MVP plan by phase.

@@ -146,12 +146,40 @@ public class OpenAiOrderExtractionGateway implements OrderExtractionGateway {
     }
 
     private Map<String, Object> schema() {
+        Map<String, Object> attributeProperties = new LinkedHashMap<>();
+        List<String> attributeNames = List.of(
+                "productFamily",
+                "material",
+                "brand",
+                "diameterMm",
+                "nominalSize",
+                "sizeSystem",
+                "pressureClass",
+                "thicknessMm",
+                "fittingType",
+                "angleDegree",
+                "threadType",
+                "reducerFromMm",
+                "reducerToMm",
+                "lengthM",
+                "sellUnit"
+        );
+        attributeNames.forEach(name -> attributeProperties.put(
+                name,
+                Map.of("type", List.of("string", "null"))
+        ));
+
         Map<String, Object> lineProperties = new LinkedHashMap<>();
         lineProperties.put("rawLineText", Map.of("type", "string"));
         lineProperties.put("itemDescription", Map.of("type", "string"));
         lineProperties.put("quantity", Map.of("type", "number"));
         lineProperties.put("requestedUnit", Map.of("type", "string"));
-        lineProperties.put("extractedAttributes", Map.of("type", "object", "additionalProperties", true));
+        lineProperties.put("extractedAttributes", Map.of(
+                "type", "object",
+                "additionalProperties", false,
+                "properties", attributeProperties,
+                "required", attributeNames
+        ));
         lineProperties.put("confidenceScore", Map.of("type", "number", "minimum", 0, "maximum", 1));
         lineProperties.put("clarificationQuestion", Map.of("type", "string"));
 

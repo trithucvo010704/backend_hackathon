@@ -9,7 +9,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,7 +44,6 @@ public class AiEnv {
     private String provider;
 
     @Column(name = "service_account_json", columnDefinition = "TEXT")
-    @Lob
     private String serviceAccountJson;
 
     @Column(name = "production_mode", nullable = false)

@@ -10,7 +10,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -68,25 +67,20 @@ public class AgentResponse {
     private UUID brainId;
 
     @Column(name = "prompt", columnDefinition = "TEXT")
-    @Lob
     private String prompt;
 
     @Column(name = "input", columnDefinition = "TEXT")
-    @Lob
     @Convert(converter = JsonConverters.ObjectMapConverter.class)
     private Map<String, Object> input;
 
     @Column(name = "output", columnDefinition = "TEXT")
-    @Lob
     @Convert(converter = JsonConverters.ObjectMapConverter.class)
     private Map<String, Object> output;
 
     @Column(name = "output_text", columnDefinition = "TEXT")
-    @Lob
     private String outputText;
 
     @Column(name = "tools", columnDefinition = "TEXT")
-    @Lob
     private String tools;
 
     @Column(name = "error", columnDefinition = "TEXT")

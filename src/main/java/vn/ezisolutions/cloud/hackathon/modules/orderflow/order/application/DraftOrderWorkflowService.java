@@ -159,6 +159,9 @@ public class DraftOrderWorkflowService {
     @Transactional
     public OrderHoldEntity releaseHold(OrderFlowPrincipal user, UUID holdId, String note) {
         OrderHoldEntity hold = orderHoldRepository.findById(holdId).orElseThrow();
+        if (note == null || note.isBlank()) {
+            throw new CustomValidationException("Cần nhập ghi chú khi release hold", null);
+        }
         hold.setStatus(HoldStatus.RELEASED);
         hold.setReleasedByUserId(user.userId());
         hold.setReleasedAt(OffsetDateTime.now());
@@ -172,6 +175,9 @@ public class DraftOrderWorkflowService {
     @Transactional
     public DraftOrderEntity approve(OrderFlowPrincipal user, UUID orderId) {
         DraftOrderEntity order = draftOrderRepository.findById(orderId).orElseThrow();
+        if (order.getStatus() == DraftOrderStatus.APPROVED || order.getStatus() == DraftOrderStatus.EXPORTED) {
+            return order;
+        }
         if (!orderHoldRepository.findByDraftOrderIdAndStatus(orderId, HoldStatus.OPEN).isEmpty()) {
             throw new CustomValidationException("Không thể duyệt đơn khi còn hold mở", null);
         }
@@ -255,7 +261,20 @@ public class DraftOrderWorkflowService {
     @Transactional
     public DraftOrderDocumentEntity generateDocument(OrderFlowPrincipal user, UUID orderId, DocumentType type) {
         DraftOrderEntity order = draftOrderRepository.findById(orderId).orElseThrow();
+        if (!orderHoldRepository.findByDraftOrderIdAndStatus(orderId, HoldStatus.OPEN).isEmpty()) {
+            throw new CustomValidationException("Không thể tạo tài liệu khi còn hold mở", null);
+        }
         List<DraftOrderLineEntity> lines = draftOrderLineRepository.findByDraftOrderIdOrderByLineNo(orderId);
+        for (DraftOrderLineEntity line : lines) {
+            if (line.getStatus() != DraftOrderLineStatus.REJECTED && line.getSelectedSkuId() == null) {
+                throw new CustomValidationException("Không thể tạo tài liệu khi còn dòng hàng chưa chọn SKU", null);
+            }
+        }
+        if (type == DocumentType.PICK_LIST
+                && order.getStatus() != DraftOrderStatus.APPROVED
+                && order.getStatus() != DraftOrderStatus.EXPORTED) {
+            throw new CustomValidationException("Chỉ tạo phiếu lấy hàng sau khi đơn được duyệt", null);
+        }
         Map<UUID, ProductSkuEntity> skus = productSkuRepository.findAllById(lines.stream()
                         .map(DraftOrderLineEntity::getSelectedSkuId)
                         .filter(id -> id != null)
@@ -272,6 +291,11 @@ public class DraftOrderWorkflowService {
         document.setGeneratedAt(OffsetDateTime.now());
         document.setCreatedAt(OffsetDateTime.now());
         documentRepository.save(document);
+        if (type == DocumentType.PICK_LIST) {
+            order.setStatus(DraftOrderStatus.EXPORTED);
+            order.setUpdatedAt(OffsetDateTime.now());
+            draftOrderRepository.save(order);
+        }
         logService.review(order.getOrganizationId(), orderId, null, "GENERATE_" + type.name(), "Generated document", user.userId(), Map.of("documentId", document.getId()));
         return document;
     }
