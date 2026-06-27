@@ -146,12 +146,30 @@ public class OpenAiOrderExtractionGateway implements OrderExtractionGateway {
     }
 
     private Map<String, Object> schema() {
+        Map<String, Object> attributeProperties = new LinkedHashMap<>();
+        attributeProperties.put("material", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("brand", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("diameterMm", Map.of("type", List.of("number", "null")));
+        attributeProperties.put("fittingType", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("pressureClass", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("threadType", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("angleDegree", Map.of("type", List.of("number", "null")));
+        attributeProperties.put("reducerFromMm", Map.of("type", List.of("number", "null")));
+        attributeProperties.put("reducerToMm", Map.of("type", List.of("number", "null")));
+        attributeProperties.put("nominalSize", Map.of("type", List.of("string", "null")));
+        attributeProperties.put("unitHint", Map.of("type", List.of("string", "null")));
+
         Map<String, Object> lineProperties = new LinkedHashMap<>();
         lineProperties.put("rawLineText", Map.of("type", "string"));
         lineProperties.put("itemDescription", Map.of("type", "string"));
         lineProperties.put("quantity", Map.of("type", "number"));
         lineProperties.put("requestedUnit", Map.of("type", "string"));
-        lineProperties.put("extractedAttributes", Map.of("type", "object", "additionalProperties", true));
+        lineProperties.put("extractedAttributes", Map.of(
+                "type", "object",
+                "additionalProperties", false,
+                "properties", attributeProperties,
+                "required", new ArrayList<>(attributeProperties.keySet())
+        ));
         lineProperties.put("confidenceScore", Map.of("type", "number", "minimum", 0, "maximum", 1));
         lineProperties.put("clarificationQuestion", Map.of("type", "string"));
 
